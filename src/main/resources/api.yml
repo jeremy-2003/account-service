@@ -1,0 +1,151 @@
+openapi: 3.0.3
+info:
+  title: Account Service API
+  description: API for managing bank accounts in the banking system.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8082/api/accounts
+    description: Local Server
+paths:
+  /:
+    post:
+      summary: Create a bank account
+      description: Creates a new bank account for a customer.
+      operationId: createAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Account"
+      responses:
+        "201":
+          description: Account successfully created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          description: Invalid data or business rules not met.
+        "409":
+          description: Account restriction already exists.
+  /{accountId}:
+    get:
+      summary: Get bank account details
+      description: Returns the details of a specific bank account.
+      operationId: getAccountById
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Account found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "404":
+          description: Account not found.
+    put:
+      summary: Update a bank account
+      description: Updates details of an existing bank account.
+      operationId: updateAccount
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Account"
+      responses:
+        "200":
+          description: Account successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "404":
+          description: Account not found.
+    delete:
+      summary: Delete a bank account
+      description: Deletes an existing bank account.
+      operationId: deleteAccount
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Account successfully deleted.
+        "404":
+          description: Account not found.
+  /customer/{customerId}:
+    get:
+      summary: Get all accounts of a customer
+      description: Returns all bank accounts associated with a customer.
+      operationId: getAccountsByCustomer
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of accounts found.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Account"
+        "404":
+          description: No accounts found for the customer.
+components:
+  schemas:
+    Account:
+      type: object
+      required:
+        - customerId
+        - accountType
+        - balance
+      properties:
+        customerId:
+          type: string
+          description: ID of the customer who owns the account.
+        accountType:
+          type: string
+          enum: [SAVINGS, CHECKING, FIXED_TERM]
+          description: Type of bank account.
+        balance:
+          type: number
+          format: double
+          description: Initial account balance.
+        holders:
+          type: array
+          description: Account holders (only for business accounts).
+          items:
+            type: string
+        signers:
+          type: array
+          description: Authorized signers (only for business accounts).
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+          description: Date and time when the account was registered
+        modifyAd:
+          type: string
+          format: date-time
+          description: Date and time when the account was modified
