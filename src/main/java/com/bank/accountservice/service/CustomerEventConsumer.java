@@ -29,7 +29,6 @@ public class CustomerEventConsumer {
                     );
         } catch (Exception e){
             log.error("Error processing customer event", e);
-            throw new RuntimeException("Error processing customer event", e);
         }
     }
 }

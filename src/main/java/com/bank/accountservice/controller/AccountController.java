@@ -7,6 +7,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.util.Collections;
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/accounts")
 public class AccountController {
@@ -49,21 +53,26 @@ public class AccountController {
                                 .build())));
     }
     @GetMapping("/customer/{customerId}")
-    public Flux<ResponseEntity<BaseResponse<Account>>> getAccountsByCustomer(@PathVariable String customerId) {
+    public Mono<ResponseEntity<BaseResponse<List<Account>>>> getAccountsByCustomer(@PathVariable String customerId) {
         return accountService.getAccountsByCustomer(customerId)
-                .map(account -> ResponseEntity.ok(
-                        BaseResponse.<Account>builder()
-                                .status(HttpStatus.OK.value())
-                                .message("Account retrieved successfully")
-                                .data(account)
-                                .build()))
-                .defaultIfEmpty(ResponseEntity
-                        .status(HttpStatus.NOT_FOUND)
-                        .body(BaseResponse.<Account>builder()
-                                .status(HttpStatus.NOT_FOUND.value())
-                                .message("No accounts found for the customer")
-                                .data(null)
-                                .build()));
+                .collectList() // Recoge el Flux en una lista
+                .map(accounts -> {
+                    if (accounts.isEmpty()) {
+                        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                .body(BaseResponse.<List<Account>>builder()
+                                        .status(HttpStatus.NOT_FOUND.value())
+                                        .message("No accounts found for the customer")
+                                        .data(Collections.emptyList())
+                                        .build());
+                    } else {
+                        return ResponseEntity.ok(
+                                BaseResponse.<List<Account>>builder()
+                                        .status(HttpStatus.OK.value())
+                                        .message("Account retrieved successfully")
+                                        .data(accounts)
+                                        .build());
+                    }
+                });
     }
     @PutMapping("/{accountId}")
     public Mono<ResponseEntity<BaseResponse<Account>>> updateAccount(@PathVariable String accountId, @RequestBody Account updatedAccount) {
@@ -100,20 +109,25 @@ public class AccountController {
                                 .build())));
     }
     @GetMapping
-    public Flux<ResponseEntity<BaseResponse<Account>>> findAllAccounts(@PathVariable String customerId) {
+    public Mono<ResponseEntity<BaseResponse<List<Account>>>> findAllAccounts() {
         return accountService.findAllAccounts()
-                .map(account -> ResponseEntity.ok(
-                        BaseResponse.<Account>builder()
-                                .status(HttpStatus.OK.value())
-                                .message("Account retrieved successfully")
-                                .data(account)
-                                .build()))
-                .defaultIfEmpty(ResponseEntity
-                        .status(HttpStatus.NOT_FOUND)
-                        .body(BaseResponse.<Account>builder()
-                                .status(HttpStatus.NOT_FOUND.value())
-                                .message("No accounts found")
-                                .data(null)
-                                .build()));
+                .collectList() // Recoge el Flux en una lista
+                .map(accounts -> {
+                    if (accounts.isEmpty()) {
+                        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                .body(BaseResponse.<List<Account>>builder()
+                                        .status(HttpStatus.NOT_FOUND.value())
+                                        .message("No accounts found")
+                                        .data(Collections.emptyList())
+                                        .build());
+                    } else {
+                        return ResponseEntity.ok(
+                                BaseResponse.<List<Account>>builder()
+                                        .status(HttpStatus.OK.value())
+                                        .message("Account retrieved successfully")
+                                        .data(accounts)
+                                        .build());
+                    }
+                });
     }
 }

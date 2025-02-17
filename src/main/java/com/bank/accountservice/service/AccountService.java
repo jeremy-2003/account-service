@@ -6,6 +6,7 @@ import com.bank.accountservice.model.Customer;
 import com.bank.accountservice.model.CustomerType;
 import com.bank.accountservice.repository.AccountRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -14,8 +15,12 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
+@Slf4j
 @Service
 public class AccountService {
     private final AccountRepository accountRepository;
@@ -32,9 +37,19 @@ public class AccountService {
         this.customerClientService = customerClientService;
         this.mongoTemplate = mongoTemplate;
     }
-    private Mono<Customer> validateCustomer(String customerId){
+    private Mono<Customer> validateCustomer(String customerId) {
+        log.info("Validating customer with ID: {}", customerId);
         return customerCacheService.getCustomer(customerId)
-                .switchIfEmpty(fetchCustomerFromService(customerId));
+                .doOnNext(customer -> log.info("Customer found in cache: {}", customer.getId()))
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.info("Customer not found in cache, fetching from service: {}", customerId);
+                    return fetchCustomerFromService(customerId);
+                }))
+                .doOnError(e -> log.error("Error in customer validation: {}", e.getMessage()))
+                .onErrorResume(ex -> {
+                    log.error("Final error handling in validateCustomer: {}", ex.getMessage());
+                    return fetchCustomerFromService(customerId);
+                });
     }
 
     private Mono<Customer> fetchCustomerFromService(String customerId) {
@@ -57,13 +72,13 @@ public class AccountService {
                 .collectList()
                 .flatMap(existingAccounts ->{
                     if(customer.getCustomerType() == CustomerType.PERSONAL){
-                        return validatePersonalCustomerRules(account, existingAccounts);
+                        return validatePersonalCustomerRules(account, existingAccounts, customer);
                     }else{
-                        return validateBusinessCustomerRules(account);
+                        return validateBusinessCustomerRules(account, customer);
                     }
                 });
     }
-    private Mono<Account> validatePersonalCustomerRules(Account account, List<Account> existingAccounts){
+    private Mono<Account> validatePersonalCustomerRules(Account account, List<Account> existingAccounts, Customer customer){
         boolean hasSavings = existingAccounts.stream().anyMatch(a->a.getAccountType() == AccountType.SAVINGS);
         boolean hasChecking = existingAccounts.stream().anyMatch(a->a.getAccountType() == AccountType.CHECKING);
         boolean hasFixed = existingAccounts.stream().anyMatch(a->a.getAccountType() == AccountType.FIXED_TERM);
@@ -73,11 +88,27 @@ public class AccountService {
                 (account.getAccountType() == AccountType.FIXED_TERM && hasFixed)){
             return Mono.error(new RuntimeException("Personal customers can have only one savings, one checking, or fixed-term account."));
         }
+        String customerNameNormalized = customer.getFullName().trim().toLowerCase();
+        if(account.getHolders() != null && !account.getHolders().isEmpty()){
+            for (String holder: account.getHolders()){
+                if(!holder.trim().toLowerCase().equals(customerNameNormalized)){
+                    return Mono.error(new RuntimeException("Personal customers can only have themselves as account holders."));
+                }
+            }
+        }
+        account.setHolders(Collections.singletonList(customer.getFullName()));
         return Mono.just(account);
     }
-    private Mono<Account> validateBusinessCustomerRules(Account account){
+    private Mono<Account> validateBusinessCustomerRules(Account account, Customer customer){
         if(account.getAccountType() == AccountType.SAVINGS || account.getAccountType() == AccountType.FIXED_TERM){
             return Mono.error(new RuntimeException("Business customres can only have checking accounts"));
+        }
+        String customerNameNormalized = customer.getFullName().trim().toLowerCase();
+        if(account.getHolders()== null || account.getHolders().isEmpty()){
+            account.setHolders(Collections.singletonList(customer.getFullName()));
+        }
+        else if (account.getHolders().stream().noneMatch(holder->holder.trim().toLowerCase().equals(customerNameNormalized))){
+            account.getHolders().add(0,customer.getFullName());
         }
         return Mono.just(account);
     }
@@ -108,7 +139,6 @@ public class AccountService {
         return accountRepository.findById(accountId)
                 .flatMap(existingAccount -> {
                     existingAccount.setModifiedAd(LocalDateTime.now());
-                    existingAccount.setAccountType(updatedAccount.getAccountType());
                     existingAccount.setHolders(updatedAccount.getHolders());
                     existingAccount.setSigners(updatedAccount.getSigners());
                     return accountRepository.save(existingAccount);
