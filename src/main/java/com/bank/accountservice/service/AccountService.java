@@ -27,15 +27,17 @@ public class AccountService {
     private final CustomerCacheService customerCacheService;
     private final CustomerClientService customerClientService;
     private final ReactiveMongoTemplate mongoTemplate;
-
+    private final AccountEventProducer accountEventProducer;
     public AccountService(AccountRepository accountRepository,
                           CustomerCacheService customerCacheService,
                           CustomerClientService customerClientService,
-                          ReactiveMongoTemplate mongoTemplate){
+                          ReactiveMongoTemplate mongoTemplate,
+                          AccountEventProducer accountEventProducer){
         this.accountRepository = accountRepository;
         this.customerCacheService = customerCacheService;
         this.customerClientService = customerClientService;
         this.mongoTemplate = mongoTemplate;
+        this.accountEventProducer = accountEventProducer;
     }
     private Mono<Customer> validateCustomer(String customerId) {
         log.info("Validating customer with ID: {}", customerId);
@@ -130,19 +132,19 @@ public class AccountService {
                     account.setCreatedAd(LocalDateTime.now());
                     account.setModifiedAd(null);
                     return accountRepository.save(account);
-                });
-                /*
-                .doOnSuccess(this::publishAccountCreated)
-                */
+                })
+                .doOnSuccess(accountEventProducer::publishAccountCreated);
     }
     public Mono<Account> updateAccount(String accountId, Account updatedAccount){
         return accountRepository.findById(accountId)
                 .flatMap(existingAccount -> {
                     existingAccount.setModifiedAd(LocalDateTime.now());
+                    existingAccount.setBalance(updatedAccount.getBalance());
                     existingAccount.setHolders(updatedAccount.getHolders());
                     existingAccount.setSigners(updatedAccount.getSigners());
                     return accountRepository.save(existingAccount);
-                });
+                })
+                .doOnSuccess(accountEventProducer::publishAccountUpdate);
     }
     public Mono<Void> deleteAccount(String accountId){
         return accountRepository.deleteById(accountId);
