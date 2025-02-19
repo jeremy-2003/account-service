@@ -121,20 +121,22 @@ public class AccountService {
             throw new RuntimeException("Error deserializing customer", e);
         }
     }
-    public Mono<Account> createAccount(Account account){
+    public Mono<Account> createAccount(Account account) {
         System.out.println("Received account: " + account);
         System.out.println("Customer ID: " + account.getCustomerId());
+        if (account.getBalance() < 0) {
+            return Mono.error(new IllegalArgumentException("Account balance must be greater than or equal to 0"));
+        }
         return validateCustomer(account.getCustomerId())
-                .flatMap(customerJson -> {
-                    return validateAccountRules(account, customerJson);
-                })
-                .flatMap(validAccount ->{
+                .flatMap(customerJson -> validateAccountRules(account, customerJson))
+                .flatMap(validAccount -> {
                     account.setCreatedAd(LocalDateTime.now());
                     account.setModifiedAd(null);
                     return accountRepository.save(account);
                 })
                 .doOnSuccess(accountEventProducer::publishAccountCreated);
     }
+
     public Mono<Account> updateAccount(String accountId, Account updatedAccount){
         return accountRepository.findById(accountId)
                 .flatMap(existingAccount -> {
