@@ -18,7 +18,7 @@ import java.util.concurrent.TimeoutException;
 public class CustomerCacheService {
     private final ReactiveRedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
-    private static final String CUSTOMER_KEY_PREFIX = "Customer:"; // Sin espacio después de los dos puntos
+    private static final String CUSTOMER_KEY_PREFIX = "Customer:";
     public CustomerCacheService(ReactiveRedisTemplate<String, String> redisTemplate) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = new ObjectMapper();

@@ -14,7 +14,7 @@ import reactor.core.publisher.Mono;
 @Service
 public class CustomerClientService {
     private final WebClient webClient;
-    private final String customerServiceUrl; // Guardamos manualmente la URL base
+    private final String customerServiceUrl;
     public CustomerClientService(WebClient.Builder webClientBuilder,
                                  @Value("${customer-service.base-url}") String customerServiceUrl) {
         this.customerServiceUrl = customerServiceUrl; // Guardamos la URL base
