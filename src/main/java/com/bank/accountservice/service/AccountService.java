@@ -30,7 +30,18 @@ public class AccountService {
     private BigDecimal maintenanFee;
     @Value("${default-values.minBalanceRequirement}")
     private BigDecimal minBalanceRequirement;
-
+    @Value("${transaction-max.savings}")
+    private Integer maxFreeTransactionSavings;
+    @Value("${transaction-max.checking}")
+    private Integer maxFreeTransactionChecking;
+    @Value("${transaction-max.fixed-terms}")
+    private Integer maxFreeTransactionFixedTerms;
+    @Value("${transaction-cost.savings}")
+    private BigDecimal costTransactionSavings;
+    @Value("${transaction-cost.checking}")
+    private BigDecimal costTransactionChecking;
+    @Value("${transaction-cost.fixed-terms}")
+    private BigDecimal costTransactionFixedTerms;
     private final AccountRepository accountRepository;
     private final CustomerCacheService customerCacheService;
     private final CustomerClientService customerClientService;
@@ -110,7 +121,18 @@ public class AccountService {
                 }
             }
         }
-
+        if(AccountType.SAVINGS == account.getAccountType()){
+            account.setMaxFreeTransaction(maxFreeTransactionSavings);
+            account.setTransactionCost(costTransactionSavings);
+        }
+        if(AccountType.CHECKING == account.getAccountType()){
+            account.setMaxFreeTransaction(maxFreeTransactionChecking);
+            account.setTransactionCost(costTransactionChecking);
+        }
+        if(AccountType.FIXED_TERM == account.getAccountType()){
+            account.setMaxFreeTransaction(maxFreeTransactionFixedTerms);
+            account.setTransactionCost(costTransactionFixedTerms);
+        }
         if (account.getAccountType() == AccountType.SAVINGS) {
             return creditClientService.getCreditCardsByCustomer(account.getCustomerId())
                     .defaultIfEmpty(Collections.emptyList()) // Agregar esta línea
@@ -149,7 +171,10 @@ public class AccountService {
         } else if (account.getHolders().stream().noneMatch(holder -> holder.trim().toLowerCase().equals(customerNameNormalized))) {
             account.getHolders().add(0, customer.getFullName());
         }
-
+        if(AccountType.CHECKING == account.getAccountType()){
+            account.setMaxFreeTransaction(maxFreeTransactionChecking);
+            account.setTransactionCost(costTransactionChecking);
+        }
         if (account.getAccountType() == AccountType.CHECKING) {
             return creditClientService.getCreditCardsByCustomer(account.getCustomerId())
                     .defaultIfEmpty(Collections.emptyList())
