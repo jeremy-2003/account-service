@@ -1,11 +1,10 @@
 package com.bank.accountservice.controller;
 import com.bank.accountservice.dto.BaseResponse;
-import com.bank.accountservice.model.Account;
+import com.bank.accountservice.model.account.Account;
 import com.bank.accountservice.service.AccountService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.Collections;
@@ -88,6 +87,23 @@ public class AccountController {
                         .body(BaseResponse.<Account>builder()
                                 .status(HttpStatus.BAD_REQUEST.value())
                                 .message(e.getMessage())
+                                .data(null)
+                                .build())));
+    }
+    @PutMapping("/{accountId}/vip-pym/status")
+    public Mono<ResponseEntity<BaseResponse<Account>>> updateVipPymStatus(@PathVariable String accountId, @RequestParam boolean isVipPym, @RequestParam String type){
+        return accountService.updateVipPymStatus(accountId, isVipPym, type)
+                .map(updatedCustomer -> ResponseEntity.ok(
+                        BaseResponse.<Account>builder()
+                                .status(HttpStatus.OK.value())
+                                .message("Account update successfully")
+                                .data(updatedCustomer)
+                                .build()))
+                .switchIfEmpty(Mono.just(ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body(BaseResponse.<Account>builder()
+                                .status(HttpStatus.NOT_FOUND.value())
+                                .message("Account not found")
                                 .data(null)
                                 .build())));
     }

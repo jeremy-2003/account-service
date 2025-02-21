@@ -1,12 +1,8 @@
-package com.bank.accountservice.service;
+package com.bank.accountservice.event;
 
-import com.bank.accountservice.model.Customer;
-import com.bank.accountservice.model.CustomerType;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.bank.accountservice.model.customer.Customer;
+import com.bank.accountservice.service.CustomerCacheService;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.platform.commons.function.Try;
-import org.springframework.data.geo.CustomMetric;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 

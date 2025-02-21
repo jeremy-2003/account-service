@@ -1,6 +1,6 @@
-package com.bank.accountservice.service;
+package com.bank.accountservice.event;
 
-import com.bank.accountservice.model.Account;
+import com.bank.accountservice.model.account.Account;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;

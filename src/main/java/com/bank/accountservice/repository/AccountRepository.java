@@ -1,6 +1,6 @@
 package com.bank.accountservice.repository;
 
-import com.bank.accountservice.model.Account;
+import com.bank.accountservice.model.account.Account;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 import reactor.core.publisher.Flux;
 

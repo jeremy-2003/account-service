@@ -1,12 +1,14 @@
 package com.bank.accountservice.service;
 
-import com.bank.accountservice.model.Account;
-import com.bank.accountservice.model.AccountType;
-import com.bank.accountservice.model.Customer;
-import com.bank.accountservice.model.CustomerType;
+import com.bank.accountservice.event.AccountEventProducer;
+import com.bank.accountservice.model.account.Account;
+import com.bank.accountservice.model.account.AccountType;
+import com.bank.accountservice.model.customer.Customer;
+import com.bank.accountservice.model.customer.CustomerType;
 import com.bank.accountservice.repository.AccountRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -14,30 +16,39 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.awt.event.TextEvent;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
+import java.util.Objects;
 
 @Slf4j
 @Service
 public class AccountService {
+    @Value("${default-values.maintenanFee}")
+    private BigDecimal maintenanFee;
+    @Value("${default-values.minBalanceRequirement}")
+    private BigDecimal minBalanceRequirement;
+
     private final AccountRepository accountRepository;
     private final CustomerCacheService customerCacheService;
     private final CustomerClientService customerClientService;
     private final ReactiveMongoTemplate mongoTemplate;
     private final AccountEventProducer accountEventProducer;
+    private final CreditClientService creditClientService;
     public AccountService(AccountRepository accountRepository,
                           CustomerCacheService customerCacheService,
                           CustomerClientService customerClientService,
                           ReactiveMongoTemplate mongoTemplate,
-                          AccountEventProducer accountEventProducer){
+                          AccountEventProducer accountEventProducer,
+                          CreditClientService creditClientService){
         this.accountRepository = accountRepository;
         this.customerCacheService = customerCacheService;
         this.customerClientService = customerClientService;
         this.mongoTemplate = mongoTemplate;
         this.accountEventProducer = accountEventProducer;
+        this.creditClientService = creditClientService;
     }
     private Mono<Customer> validateCustomer(String customerId) {
         log.info("Validating customer with ID: {}", customerId);
@@ -80,40 +91,91 @@ public class AccountService {
                     }
                 });
     }
-    private Mono<Account> validatePersonalCustomerRules(Account account, List<Account> existingAccounts, Customer customer){
-        boolean hasSavings = existingAccounts.stream().anyMatch(a->a.getAccountType() == AccountType.SAVINGS);
-        boolean hasChecking = existingAccounts.stream().anyMatch(a->a.getAccountType() == AccountType.CHECKING);
-        boolean hasFixed = existingAccounts.stream().anyMatch(a->a.getAccountType() == AccountType.FIXED_TERM);
+    private Mono<Account> validatePersonalCustomerRules(Account account, List<Account> existingAccounts, Customer customer) {
+        boolean hasSavings = existingAccounts.stream().anyMatch(a -> a.getAccountType() == AccountType.SAVINGS);
+        boolean hasChecking = existingAccounts.stream().anyMatch(a -> a.getAccountType() == AccountType.CHECKING);
+        boolean hasFixed = existingAccounts.stream().anyMatch(a -> a.getAccountType() == AccountType.FIXED_TERM);
 
-        if((account.getAccountType() == AccountType.SAVINGS && hasSavings) ||
-                (account.getAccountType() == AccountType.CHECKING && hasChecking)||
-                (account.getAccountType() == AccountType.FIXED_TERM && hasFixed)){
+        if ((account.getAccountType() == AccountType.SAVINGS && hasSavings) ||
+                (account.getAccountType() == AccountType.CHECKING && hasChecking) ||
+                (account.getAccountType() == AccountType.FIXED_TERM && hasFixed)) {
             return Mono.error(new RuntimeException("Personal customers can have only one savings, one checking, or fixed-term account."));
         }
+
         String customerNameNormalized = customer.getFullName().trim().toLowerCase();
-        if(account.getHolders() != null && !account.getHolders().isEmpty()){
-            for (String holder: account.getHolders()){
-                if(!holder.trim().toLowerCase().equals(customerNameNormalized)){
+        if (account.getHolders() != null && !account.getHolders().isEmpty()) {
+            for (String holder : account.getHolders()) {
+                if (!holder.trim().toLowerCase().equals(customerNameNormalized)) {
                     return Mono.error(new RuntimeException("Personal customers can only have themselves as account holders."));
                 }
             }
         }
+
+        if (account.getAccountType() == AccountType.SAVINGS) {
+            return creditClientService.getCreditCardsByCustomer(account.getCustomerId())
+                    .defaultIfEmpty(Collections.emptyList()) // Agregar esta línea
+                    .flatMap(creditCards -> {
+                        if (creditCards != null && !creditCards.isEmpty()) {
+                            return customerClientService.updateVipPymStatus(account.getCustomerId(), true)
+                                    .thenReturn(creditCards);
+                        } else {
+                            return Mono.just(creditCards);
+                        }
+                    })
+                    .map(creditCards -> {
+                        if (creditCards != null && !creditCards.isEmpty()) {
+                            account.setMinBalanceRequirement(minBalanceRequirement);
+                            account.setVipAccount(true);
+                        } else {
+                            account.setMinBalanceRequirement(null);
+                            account.setVipAccount(false);
+                        }
+                        account.setHolders(Collections.singletonList(customer.getFullName()));
+                        return account;
+                    });
+        }
         account.setHolders(Collections.singletonList(customer.getFullName()));
         return Mono.just(account);
     }
-    private Mono<Account> validateBusinessCustomerRules(Account account, Customer customer){
-        if(account.getAccountType() == AccountType.SAVINGS || account.getAccountType() == AccountType.FIXED_TERM){
-            return Mono.error(new RuntimeException("Business customres can only have checking accounts"));
+
+    private Mono<Account> validateBusinessCustomerRules(Account account, Customer customer) {
+        if (account.getAccountType() == AccountType.SAVINGS || account.getAccountType() == AccountType.FIXED_TERM) {
+            return Mono.error(new RuntimeException("Business customers can only have checking accounts"));
         }
+
         String customerNameNormalized = customer.getFullName().trim().toLowerCase();
-        if(account.getHolders()== null || account.getHolders().isEmpty()){
+        if (account.getHolders() == null || account.getHolders().isEmpty()) {
             account.setHolders(Collections.singletonList(customer.getFullName()));
+        } else if (account.getHolders().stream().noneMatch(holder -> holder.trim().toLowerCase().equals(customerNameNormalized))) {
+            account.getHolders().add(0, customer.getFullName());
         }
-        else if (account.getHolders().stream().noneMatch(holder->holder.trim().toLowerCase().equals(customerNameNormalized))){
-            account.getHolders().add(0,customer.getFullName());
+
+        if (account.getAccountType() == AccountType.CHECKING) {
+            return creditClientService.getCreditCardsByCustomer(account.getCustomerId())
+                    .defaultIfEmpty(Collections.emptyList())
+                    .flatMap(creditCards -> {
+                        if (creditCards != null && !creditCards.isEmpty()) {
+                            return customerClientService.updateVipPymStatus(account.getCustomerId(), true)
+                                    .thenReturn(creditCards);
+                        } else {
+                            return Mono.just(creditCards);
+                        }
+                    })
+                    .map(creditCards -> {
+                        if (creditCards != null && !creditCards.isEmpty()) {
+                            customerClientService.updateVipPymStatus(account.getCustomerId(), true).subscribe();
+                            account.setMaintenanFee(BigDecimal.valueOf(0));
+                            account.setPymAccount(true);
+                        } else {
+                            account.setMaintenanFee(maintenanFee);
+                            account.setPymAccount(false);
+                        }
+                        return account;
+                    });
         }
         return Mono.just(account);
     }
+
     private Customer fromJson(String customerJson){
         try {
             return new ObjectMapper().readValue(customerJson, Customer.class);
@@ -148,8 +210,39 @@ public class AccountService {
                 })
                 .doOnSuccess(accountEventProducer::publishAccountUpdate);
     }
-    public Mono<Void> deleteAccount(String accountId){
-        return accountRepository.deleteById(accountId);
+    public Mono<Void> deleteAccount(String accountId) {
+        return accountRepository.findById(accountId)
+                .flatMap(account -> {
+                    return accountRepository.findByCustomerId(account.getCustomerId())
+                            .filter(acc -> !acc.getId().equals(accountId))
+                            .collectList()
+                            .flatMap(accounts -> {
+                                if (accounts.isEmpty()) {
+                                    return customerClientService.updateVipPymStatus(account.getCustomerId(), false)
+                                            .then(accountRepository.deleteById(accountId));
+                                }
+                                return customerClientService.getCustomerById(account.getCustomerId())
+                                        .flatMap(customer -> {
+                                            Mono<Customer> updateStatus = Mono.empty();
+                                            if (customer.isPym()) {
+                                                boolean hasCheckingAccount = accounts.stream()
+                                                        .anyMatch(acc -> acc.getAccountType() == AccountType.CHECKING);
+                                                if (!hasCheckingAccount) {
+                                                    updateStatus = customerClientService.updateVipPymStatus(account.getCustomerId(), false);
+                                                }
+                                            }
+                                            if (customer.isVip()) {
+                                                boolean hasSavingsAccount = accounts.stream()
+                                                        .anyMatch(acc -> acc.getAccountType() == AccountType.SAVINGS);
+                                                if (!hasSavingsAccount) {
+                                                    updateStatus = customerClientService.updateVipPymStatus(account.getCustomerId(), false);
+
+                                                }
+                                            }
+                                            return updateStatus.then(accountRepository.deleteById(accountId));
+                                        });
+                            });
+                });
     }
     public Flux<Account> findAllAccounts(){
         return accountRepository.findAll();
@@ -159,6 +252,19 @@ public class AccountService {
     }
     public Flux<Account> getAccountsByCustomer(String customerId){
         return accountRepository.findByCustomerId(customerId);
+    }
+    public Mono<Account> updateVipPymStatus(String accountId, boolean isVipPym, String type) {
+        return accountRepository.findById(accountId)
+                .flatMap(existingAccount -> {
+                    if ("PYM".equals(type)) {
+                        existingAccount.setPymAccount(isVipPym);
+                        existingAccount.setMaintenanFee(isVipPym ? BigDecimal.valueOf(0) : maintenanFee);
+                    } else if ("VIP".equals(type)) {
+                        existingAccount.setVipAccount(isVipPym);
+                        existingAccount.setMinBalanceRequirement(isVipPym ? minBalanceRequirement : null);
+                    }
+                    return accountRepository.save(existingAccount);
+                });
     }
 
 }
