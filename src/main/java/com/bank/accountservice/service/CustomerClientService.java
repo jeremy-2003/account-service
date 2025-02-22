@@ -10,8 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-import java.util.Map;
-
 @Slf4j
 @Service
 public class CustomerClientService {
@@ -19,7 +17,7 @@ public class CustomerClientService {
     private final String customerServiceUrl;
     public CustomerClientService(WebClient.Builder webClientBuilder,
                                  @Value("${customer-service.base-url}") String customerServiceUrl) {
-        this.customerServiceUrl = customerServiceUrl; // Guardamos la URL base
+        this.customerServiceUrl = customerServiceUrl;
         this.webClient = webClientBuilder.baseUrl(customerServiceUrl).build();
     }
     public Mono<Customer> getCustomerById(String customerId) {
