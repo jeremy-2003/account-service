@@ -74,7 +74,8 @@ public class AccountController {
                 });
     }
     @PutMapping("/{accountId}")
-    public Mono<ResponseEntity<BaseResponse<Account>>> updateAccount(@PathVariable String accountId, @RequestBody Account updatedAccount) {
+    public Mono<ResponseEntity<BaseResponse<Account>>> updateAccount(@PathVariable String accountId,
+                                                                     @RequestBody Account updatedAccount) {
         return accountService.updateAccount(accountId, updatedAccount)
                 .map(account -> ResponseEntity.ok(
                         BaseResponse.<Account>builder()
@@ -91,7 +92,9 @@ public class AccountController {
                                 .build())));
     }
     @PutMapping("/{accountId}/vip-pym/status")
-    public Mono<ResponseEntity<BaseResponse<Account>>> updateVipPymStatus(@PathVariable String accountId, @RequestParam boolean isVipPym, @RequestParam String type){
+    public Mono<ResponseEntity<BaseResponse<Account>>> updateVipPymStatus(@PathVariable String accountId,
+                                                                          @RequestParam boolean isVipPym,
+                                                                          @RequestParam String type) {
         return accountService.updateVipPymStatus(accountId, isVipPym, type)
                 .map(updatedCustomer -> ResponseEntity.ok(
                         BaseResponse.<Account>builder()

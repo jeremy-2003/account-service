@@ -35,15 +35,17 @@ public class CreditClientService {
                     }
                     return clientResponse.createException().flatMap(Mono::error);
                 })
-                .bodyToMono(new ParameterizedTypeReference<BaseResponse<List<CreditCard>>>() {})
+                .bodyToMono(new ParameterizedTypeReference<BaseResponse<List<CreditCard>>>() { })
                 .flatMap(baseResponse -> {
-                    if (baseResponse.getStatus() == 400 && "This customer doesnt have credit cards".equals(baseResponse.getMessage())) {
+                    if (baseResponse.getStatus() == 400 && "This customer doesnt have credit cards"
+                        .equals(baseResponse.getMessage())) {
                         log.warn("No credit cards found for customer {}: {}", customerId, baseResponse.getMessage());
                         return Mono.empty();
                     }
                     return Mono.justOrEmpty(baseResponse.getData());
                 })
-                .doOnError(error -> log.error("Error fetching credit cards for customer {}: {}", customerId, error.getMessage()));
+                .doOnError(error -> log.error("Error fetching credit cards for customer {}: {}",
+                    customerId, error.getMessage()));
     }
 
 }

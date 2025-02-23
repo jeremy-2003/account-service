@@ -32,9 +32,9 @@ public class CustomerClientService {
                 .onStatus(HttpStatus::is5xxServerError, response ->
                         Mono.error(new RuntimeException("Server error: " + response.statusCode()))
                 )
-                .bodyToMono(new ParameterizedTypeReference<BaseResponse<Customer>>() {})
+                .bodyToMono(new ParameterizedTypeReference<BaseResponse<Customer>>() { })
                 .flatMap(response -> {
-                    if(response.getData() != null){
+                    if (response.getData() != null) {
                         return Mono.just(response.getData());
                     } else {
                         return Mono.empty();
@@ -59,7 +59,7 @@ public class CustomerClientService {
                 .onStatus(HttpStatus::is5xxServerError, response ->
                         Mono.error(new RuntimeException("Server error: " + response.statusCode()))
                 )
-                .bodyToMono(new ParameterizedTypeReference<BaseResponse<Customer>>() {})
+                .bodyToMono(new ParameterizedTypeReference<BaseResponse<Customer>>() { })
                 .flatMap(response -> response.getData() != null ? Mono.just(response.getData()) : Mono.empty())
                 .doOnNext(result -> log.info("Customer API response: {}", result))
                 .doOnError(e -> log.error("Error while updating customer: {}", e.getMessage()))

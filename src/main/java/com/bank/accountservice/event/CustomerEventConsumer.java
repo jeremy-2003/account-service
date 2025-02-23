@@ -15,15 +15,14 @@ public class CustomerEventConsumer {
     }
     @KafkaListener(topics = "customer-created", groupId = "account-service-group")
     public void consume(Customer customer) {
-        try{
+        try {
             log.info("Reactive customer event: {}", customer);
             cacheService.saveCustomer(customer.getId(), customer)
                     .subscribe(
-                            null,
-                            throwable -> log.error("Error caching customer: {}", throwable.getMessage()),
-                            () -> log.info("Customer cached successfully")
-                    );
-        } catch (Exception e){
+                        null,
+                        throwable -> log.error("Error caching customer: {}", throwable.getMessage()),
+                        () -> log.info("Customer cached successfully"));
+        } catch (Exception e) {
             log.error("Error processing customer event", e);
         }
     }

@@ -1,10 +1,10 @@
 package com.bank.accountservice.dto;
-
-
-import lombok.Builder;
-import lombok.Data;
-
+import lombok.*;
 @Data
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
 @Builder
 public class BaseResponse<T> {
     private int status;

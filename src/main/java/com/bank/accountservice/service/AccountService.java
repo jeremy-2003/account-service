@@ -16,12 +16,10 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.awt.event.TextEvent;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 @Slf4j
 @Service
@@ -53,7 +51,7 @@ public class AccountService {
                           CustomerClientService customerClientService,
                           ReactiveMongoTemplate mongoTemplate,
                           AccountEventProducer accountEventProducer,
-                          CreditClientService creditClientService){
+                          CreditClientService creditClientService) {
         this.accountRepository = accountRepository;
         this.customerCacheService = customerCacheService;
         this.customerClientService = customerClientService;
@@ -90,19 +88,21 @@ public class AccountService {
     }
 
 
-    private Mono<Account> validateAccountRules(Account account, Customer customer){
+    private Mono<Account> validateAccountRules(Account account, Customer customer) {
         Query query = new Query(Criteria.where("customerId").is(account.getCustomerId()));
         return mongoTemplate.find(query, Account.class)
                 .collectList()
-                .flatMap(existingAccounts ->{
-                    if(customer.getCustomerType() == CustomerType.PERSONAL){
+                .flatMap(existingAccounts -> {
+                    if (customer.getCustomerType() == CustomerType.PERSONAL) {
                         return validatePersonalCustomerRules(account, existingAccounts, customer);
-                    }else{
+                    } else {
                         return validateBusinessCustomerRules(account, customer);
                     }
                 });
     }
-    private Mono<Account> validatePersonalCustomerRules(Account account, List<Account> existingAccounts, Customer customer) {
+    private Mono<Account> validatePersonalCustomerRules(Account account,
+                                                        List<Account> existingAccounts,
+                                                        Customer customer) {
         boolean hasSavings = existingAccounts.stream().anyMatch(a -> a.getAccountType() == AccountType.SAVINGS);
         boolean hasChecking = existingAccounts.stream().anyMatch(a -> a.getAccountType() == AccountType.CHECKING);
         boolean hasFixed = existingAccounts.stream().anyMatch(a -> a.getAccountType() == AccountType.FIXED_TERM);
@@ -110,32 +110,34 @@ public class AccountService {
         if ((account.getAccountType() == AccountType.SAVINGS && hasSavings) ||
                 (account.getAccountType() == AccountType.CHECKING && hasChecking) ||
                 (account.getAccountType() == AccountType.FIXED_TERM && hasFixed)) {
-            return Mono.error(new RuntimeException("Personal customers can have only one savings, one checking, or fixed-term account."));
+            return Mono.error(new RuntimeException("Personal customers can have only one savings, one checking, " +
+                "or fixed-term account."));
         }
 
         String customerNameNormalized = customer.getFullName().trim().toLowerCase();
         if (account.getHolders() != null && !account.getHolders().isEmpty()) {
             for (String holder : account.getHolders()) {
                 if (!holder.trim().toLowerCase().equals(customerNameNormalized)) {
-                    return Mono.error(new RuntimeException("Personal customers can only have themselves as account holders."));
+                    return Mono.error(new RuntimeException("Personal customers can only have themselves " +
+                        "as account holders."));
                 }
             }
         }
-        if(AccountType.SAVINGS == account.getAccountType()){
+        if (AccountType.SAVINGS == account.getAccountType()) {
             account.setMaxFreeTransaction(maxFreeTransactionSavings);
             account.setTransactionCost(costTransactionSavings);
         }
-        if(AccountType.CHECKING == account.getAccountType()){
+        if (AccountType.CHECKING == account.getAccountType()) {
             account.setMaxFreeTransaction(maxFreeTransactionChecking);
             account.setTransactionCost(costTransactionChecking);
         }
-        if(AccountType.FIXED_TERM == account.getAccountType()){
+        if (AccountType.FIXED_TERM == account.getAccountType()) {
             account.setMaxFreeTransaction(maxFreeTransactionFixedTerms);
             account.setTransactionCost(costTransactionFixedTerms);
         }
         if (account.getAccountType() == AccountType.SAVINGS) {
             return creditClientService.getCreditCardsByCustomer(account.getCustomerId())
-                    .defaultIfEmpty(Collections.emptyList()) // Agregar esta línea
+                    .defaultIfEmpty(Collections.emptyList())
                     .flatMap(creditCards -> {
                         if (creditCards != null && !creditCards.isEmpty()) {
                             return customerClientService.updateVipPymStatus(account.getCustomerId(), true)
@@ -168,10 +170,11 @@ public class AccountService {
         String customerNameNormalized = customer.getFullName().trim().toLowerCase();
         if (account.getHolders() == null || account.getHolders().isEmpty()) {
             account.setHolders(Collections.singletonList(customer.getFullName()));
-        } else if (account.getHolders().stream().noneMatch(holder -> holder.trim().toLowerCase().equals(customerNameNormalized))) {
+        } else if (account.getHolders().stream().noneMatch(holder ->
+            holder.trim().toLowerCase().equals(customerNameNormalized))) {
             account.getHolders().add(0, customer.getFullName());
         }
-        if(AccountType.CHECKING == account.getAccountType()){
+        if (AccountType.CHECKING == account.getAccountType()) {
             account.setMaxFreeTransaction(maxFreeTransactionChecking);
             account.setTransactionCost(costTransactionChecking);
         }
@@ -201,10 +204,10 @@ public class AccountService {
         return Mono.just(account);
     }
 
-    private Customer fromJson(String customerJson){
+    private Customer fromJson(String customerJson) {
         try {
             return new ObjectMapper().readValue(customerJson, Customer.class);
-        } catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException("Error deserializing customer", e);
         }
     }
@@ -224,7 +227,7 @@ public class AccountService {
                 .doOnSuccess(accountEventProducer::publishAccountCreated);
     }
 
-    public Mono<Account> updateAccount(String accountId, Account updatedAccount){
+    public Mono<Account> updateAccount(String accountId, Account updatedAccount) {
         return accountRepository.findById(accountId)
                 .flatMap(existingAccount -> {
                     existingAccount.setModifiedAd(LocalDateTime.now());
@@ -253,15 +256,16 @@ public class AccountService {
                                                 boolean hasCheckingAccount = accounts.stream()
                                                         .anyMatch(acc -> acc.getAccountType() == AccountType.CHECKING);
                                                 if (!hasCheckingAccount) {
-                                                    updateStatus = customerClientService.updateVipPymStatus(account.getCustomerId(), false);
+                                                    updateStatus = customerClientService.
+                                                        updateVipPymStatus(account.getCustomerId(), false);
                                                 }
                                             }
                                             if (customer.isVip()) {
                                                 boolean hasSavingsAccount = accounts.stream()
                                                         .anyMatch(acc -> acc.getAccountType() == AccountType.SAVINGS);
                                                 if (!hasSavingsAccount) {
-                                                    updateStatus = customerClientService.updateVipPymStatus(account.getCustomerId(), false);
-
+                                                    updateStatus = customerClientService.
+                                                        updateVipPymStatus(account.getCustomerId(), false);
                                                 }
                                             }
                                             return updateStatus.then(accountRepository.deleteById(accountId));
@@ -269,13 +273,13 @@ public class AccountService {
                             });
                 });
     }
-    public Flux<Account> findAllAccounts(){
+    public Flux<Account> findAllAccounts() {
         return accountRepository.findAll();
     }
-    public Mono<Account> getAccountById(String accountId){
+    public Mono<Account> getAccountById(String accountId) {
         return accountRepository.findById(accountId);
     }
-    public Flux<Account> getAccountsByCustomer(String customerId){
+    public Flux<Account> getAccountsByCustomer(String customerId) {
         return accountRepository.findByCustomerId(customerId);
     }
     public Mono<Account> updateVipPymStatus(String accountId, boolean isVipPym, String type) {

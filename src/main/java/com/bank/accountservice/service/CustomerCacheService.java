@@ -68,10 +68,10 @@ public class CustomerCacheService {
                     }
                 })
                 .timeout(Duration.ofSeconds(5))  // Incrementé el timeout a 5 segundos
-                .doOnError(TimeoutException.class, e->
+                .doOnError(TimeoutException.class, e ->
                         log.error("Redis operation timed out for key: {}", key))
-                .doOnError(e->{
-                    if(!(e instanceof TimeoutException)){
+                .doOnError(e -> {
+                    if (!(e instanceof TimeoutException)) {
                         log.error("Error retrieving customer from cache: {}", e.getMessage());
                     }
                 })
