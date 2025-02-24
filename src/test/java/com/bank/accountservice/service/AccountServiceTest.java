@@ -307,7 +307,7 @@ class AccountServiceTest {
         Customer pymCustomer = new Customer();
         pymCustomer.setId("C001");
         pymCustomer.setPym(true);
-        // Mock repository calls
+
         when(accountRepository.findById("CH001")).thenReturn(Mono.just(accountToDelete));
         when(accountRepository.findByCustomerId("C001")).thenReturn(Flux.just(savingsAccount));
         when(customerClientService.getCustomerById("C001")).thenReturn(Mono.just(pymCustomer));
@@ -316,7 +316,6 @@ class AccountServiceTest {
         // Act & Assert
         StepVerifier.create(accountService.deleteAccount("CH001"))
                 .verifyComplete();
-        // Verify that updateVipPymStatus was called because it was the last checking account
         verify(customerClientService).updateVipPymStatus("C001", false);
         verify(accountRepository).deleteById("CH001");
     }
@@ -334,7 +333,7 @@ class AccountServiceTest {
         Customer pymCustomer = new Customer();
         pymCustomer.setId("C001");
         pymCustomer.setPym(true);
-        // Mock repository calls
+
         when(accountRepository.findById("SA001")).thenReturn(Mono.just(accountToDelete));
         when(accountRepository.findByCustomerId("C001")).thenReturn(Flux.just(remainingCheckingAccount));
         when(customerClientService.getCustomerById("C001")).thenReturn(Mono.just(pymCustomer));
@@ -342,7 +341,6 @@ class AccountServiceTest {
         // Act & Assert
         StepVerifier.create(accountService.deleteAccount("SA001"))
                 .verifyComplete();
-        // Verify that updateVipPymStatus was NOT called because there's still a checking account
         verify(customerClientService, never()).updateVipPymStatus(anyString(), anyBoolean());
         verify(accountRepository).deleteById("SA001");
     }
@@ -360,7 +358,7 @@ class AccountServiceTest {
         Customer vipCustomer = new Customer();
         vipCustomer.setId("C001");
         vipCustomer.setVip(true);
-        // Mock repository calls
+
         when(accountRepository.findById("SA001")).thenReturn(Mono.just(accountToDelete));
         when(accountRepository.findByCustomerId("C001")).thenReturn(Flux.just(checkingAccount));
         when(customerClientService.getCustomerById("C001")).thenReturn(Mono.just(vipCustomer));
@@ -369,7 +367,6 @@ class AccountServiceTest {
         // Act & Assert
         StepVerifier.create(accountService.deleteAccount("SA001"))
                 .verifyComplete();
-        // Verify that updateVipPymStatus was called because it was the last savings account
         verify(customerClientService).updateVipPymStatus("C001", false);
         verify(accountRepository).deleteById("SA001");
     }
@@ -387,7 +384,7 @@ class AccountServiceTest {
         Customer vipCustomer = new Customer();
         vipCustomer.setId("C001");
         vipCustomer.setVip(true);
-        // Mock repository calls
+
         when(accountRepository.findById("CH001")).thenReturn(Mono.just(accountToDelete));
         when(accountRepository.findByCustomerId("C001")).thenReturn(Flux.just(remainingSavingsAccount));
         when(customerClientService.getCustomerById("C001")).thenReturn(Mono.just(vipCustomer));
@@ -395,7 +392,6 @@ class AccountServiceTest {
         // Act & Assert
         StepVerifier.create(accountService.deleteAccount("CH001"))
                 .verifyComplete();
-        // Verify that updateVipPymStatus was NOT called because there's still a savings account
         verify(customerClientService, never()).updateVipPymStatus(anyString(), anyBoolean());
         verify(accountRepository).deleteById("CH001");
     }
@@ -423,7 +419,6 @@ class AccountServiceTest {
         // Act & Assert
         StepVerifier.create(accountService.deleteAccount("SA001"))
                 .verifyComplete();
-        // Verify that updateVipPymStatus was called because a savings account was removed from a VIP customer
         verify(customerClientService).updateVipPymStatus("C001", false);
         verify(accountRepository).deleteById("SA001");
     }

@@ -50,8 +50,8 @@ public class CustomerClientService {
         return webClient.put()
                 .uri(uriBuilder -> uriBuilder
                         .path("/{customerId}/vip-pym/status")
-                        .queryParam("isVipPym", isVipPym)  // Enviamos el parámetro como query param
-                        .build(customerId)) // Se reemplaza el path param
+                        .queryParam("isVipPym", isVipPym)
+                        .build(customerId))
                 .retrieve()
                 .onStatus(HttpStatus::is4xxClientError, response ->
                         Mono.error(new RuntimeException("Client error: " + response.statusCode()))

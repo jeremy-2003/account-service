@@ -67,7 +67,7 @@ public class CustomerCacheService {
                         return Mono.empty();
                     }
                 })
-                .timeout(Duration.ofSeconds(5))  // Incrementé el timeout a 5 segundos
+                .timeout(Duration.ofSeconds(5))
                 .doOnError(TimeoutException.class, e ->
                         log.error("Redis operation timed out for key: {}", key))
                 .doOnError(e -> {

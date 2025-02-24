@@ -54,7 +54,7 @@ public class AccountController {
     @GetMapping("/customer/{customerId}")
     public Mono<ResponseEntity<BaseResponse<List<Account>>>> getAccountsByCustomer(@PathVariable String customerId) {
         return accountService.getAccountsByCustomer(customerId)
-                .collectList() // Recoge el Flux en una lista
+                .collectList()
                 .map(accounts -> {
                     if (accounts.isEmpty()) {
                         return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -130,7 +130,7 @@ public class AccountController {
     @GetMapping
     public Mono<ResponseEntity<BaseResponse<List<Account>>>> findAllAccounts() {
         return accountService.findAllAccounts()
-                .collectList() // Recoge el Flux en una lista
+                .collectList()
                 .map(accounts -> {
                     if (accounts.isEmpty()) {
                         return ResponseEntity.status(HttpStatus.NOT_FOUND)
