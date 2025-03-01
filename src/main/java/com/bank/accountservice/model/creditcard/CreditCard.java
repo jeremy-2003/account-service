@@ -21,4 +21,10 @@ public class CreditCard {
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime modifiedAt;
+
+    private PaymentStatus paymentStatus;
+    private LocalDateTime cutoffDate;
+    private LocalDateTime paymentDueDate;
+    private BigDecimal minimumPayment;
 }
+

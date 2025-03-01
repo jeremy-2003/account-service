@@ -82,7 +82,7 @@ class AccountRepositoryTest {
         account.setCustomerId(customerId);
         account.setAccountType(AccountType.SAVINGS);
         account.setBalance(1000.0);
-        account.setCreatedAd(LocalDateTime.now());
+        account.setCreatedAt(LocalDateTime.now());
         return account;
     }
 }

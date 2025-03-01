@@ -8,6 +8,7 @@ import com.bank.accountservice.model.customer.CustomerType;
 import com.bank.accountservice.repository.AccountRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -46,18 +47,21 @@ public class AccountService {
     private final ReactiveMongoTemplate mongoTemplate;
     private final AccountEventProducer accountEventProducer;
     private final CreditClientService creditClientService;
+    private CustomerEligibilityClientService customerEligibilityClientService;
     public AccountService(AccountRepository accountRepository,
                           CustomerCacheService customerCacheService,
                           CustomerClientService customerClientService,
                           ReactiveMongoTemplate mongoTemplate,
                           AccountEventProducer accountEventProducer,
-                          CreditClientService creditClientService) {
+                          CreditClientService creditClientService,
+                          CustomerEligibilityClientService customerEligibilityClientService) {
         this.accountRepository = accountRepository;
         this.customerCacheService = customerCacheService;
         this.customerClientService = customerClientService;
         this.mongoTemplate = mongoTemplate;
         this.accountEventProducer = accountEventProducer;
         this.creditClientService = creditClientService;
+        this.customerEligibilityClientService = customerEligibilityClientService;
     }
     private Mono<Customer> validateCustomer(String customerId) {
         log.info("Validating customer with ID: {}", customerId);
@@ -214,23 +218,30 @@ public class AccountService {
     public Mono<Account> createAccount(Account account) {
         System.out.println("Received account: " + account);
         System.out.println("Customer ID: " + account.getCustomerId());
-        if (account.getBalance() < 0) {
-            return Mono.error(new IllegalArgumentException("Account balance must be greater than or equal to 0"));
-        }
-        return validateCustomer(account.getCustomerId())
-                .flatMap(customerJson -> validateAccountRules(account, customerJson))
-                .flatMap(validAccount -> {
-                    account.setCreatedAd(LocalDateTime.now());
-                    account.setModifiedAd(null);
-                    return accountRepository.save(account);
-                })
-                .doOnSuccess(accountEventProducer::publishAccountCreated);
+        return customerEligibilityClientService.hasOverdueDebt(account.getCustomerId())
+                .flatMap(hasOverDueDebt -> {
+                    if (hasOverDueDebt) {
+                        return Mono.error(new RuntimeException
+                                ("Customer has overdue debt and cannot create a new credit"));
+                    }
+                    if (account.getBalance() < 0) {
+                        return Mono.error(new IllegalArgumentException("Account balance must be greater than or equal to 0"));
+                    }
+                    return validateCustomer(account.getCustomerId())
+                            .flatMap(customerJson -> validateAccountRules(account, customerJson))
+                            .flatMap(validAccount -> {
+                                account.setCreatedAt(LocalDateTime.now());
+                                account.setModifiedAt(null);
+                                return accountRepository.save(account);
+                            })
+                            .doOnSuccess(accountEventProducer::publishAccountCreated);
+                });
     }
 
     public Mono<Account> updateAccount(String accountId, Account updatedAccount) {
         return accountRepository.findById(accountId)
                 .flatMap(existingAccount -> {
-                    existingAccount.setModifiedAd(LocalDateTime.now());
+                    existingAccount.setModifiedAt(LocalDateTime.now());
                     existingAccount.setBalance(updatedAccount.getBalance());
                     existingAccount.setHolders(updatedAccount.getHolders());
                     existingAccount.setSigners(updatedAccount.getSigners());

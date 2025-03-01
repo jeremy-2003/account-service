@@ -38,7 +38,7 @@ class AccountControllerTest {
         testAccount.setAccountType(AccountType.SAVINGS);
         testAccount.setBalance(1000.0);
         testAccount.setVipAccount(false);
-        testAccount.setCreatedAd(LocalDateTime.now());
+        testAccount.setCreatedAt(LocalDateTime.now());
         testAccount.setHolders(Arrays.asList("holder1"));
         testAccount.setMaxFreeTransaction(10);
         testAccount.setTransactionCost(BigDecimal.valueOf(2.0));
