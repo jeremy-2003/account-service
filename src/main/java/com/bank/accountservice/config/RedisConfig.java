@@ -8,12 +8,11 @@ import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
-import org.springframework.data.redis.connection.ReactiveRedisConnection;
-import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
-import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.*;
 import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
@@ -21,32 +20,52 @@ import java.time.Duration;
 
 @Configuration
 public class RedisConfig {
-    @Value("${spring.data.redis.host:localhost}")
+    @Value("${spring.data.redis.host}")
     private String redisHost;
-    @Value("${spring.data.redis.port:6379}")
+    @Value("${spring.data.redis.port:6380}")
     private int redisPort;
-    @Value("${spring.data.redis.timeout:2000}")
+    @Value("${spring.data.redis.password}")
+    private String redisPassword;
+    @Value("${spring.data.redis.ssl:false}")
+    private boolean redisSsl;
+    @Value("${spring.data.redis.timeout:10000}")
     private int timeout;
-    @Bean
-    @Primary
-    public ReactiveRedisConnectionFactory reactiveRedisConnectionFactory() {
-        LettuceClientConfiguration clientConfig = LettuceClientConfiguration.builder()
+    private RedisStandaloneConfiguration createRedisConfiguration() {
+        RedisStandaloneConfiguration redisConfig = new RedisStandaloneConfiguration(redisHost, redisPort);
+        redisConfig.setPassword(RedisPassword.of(redisPassword));
+        return redisConfig;
+    }
+    private LettuceClientConfiguration createLettuceConfiguration(boolean useSsl) {
+        LettuceClientConfiguration.LettuceClientConfigurationBuilder builder = LettuceClientConfiguration.builder()
                 .commandTimeout(Duration.ofMillis(timeout))
                 .shutdownTimeout(Duration.ZERO)
                 .clientOptions(ClientOptions.builder()
                         .socketOptions(SocketOptions.builder()
                                 .connectTimeout(Duration.ofMillis(timeout))
                                 .build())
-                        .build())
-                .build();
+                        .build());
+        if (useSsl) {
+            builder.useSsl();
+        }
+        return builder.build();
+    }
+    @Bean
+    @Primary
+    public RedisConnectionFactory redisConnectionFactory() {
         return new LettuceConnectionFactory(
-                new RedisStandaloneConfiguration(redisHost, redisPort),
-                clientConfig);
+                createRedisConfiguration(),
+                createLettuceConfiguration(redisSsl));
+    }
+    @Bean
+    public ReactiveRedisConnectionFactory reactiveRedisConnectionFactory() {
+        return new LettuceConnectionFactory(
+                createRedisConfiguration(),
+                createLettuceConfiguration(redisSsl));
     }
     @Bean
     @Primary
     public ReactiveRedisTemplate<String, String> reactiveRedisTemplate(
-            ReactiveRedisConnectionFactory factory) {
+            ReactiveRedisConnectionFactory reactiveRedisConnectionFactory) {
         StringRedisSerializer keySerializer = new StringRedisSerializer();
         StringRedisSerializer valueSerializer = new StringRedisSerializer();
         RedisSerializationContext.RedisSerializationContextBuilder<String, String> builder =
@@ -54,7 +73,15 @@ public class RedisConfig {
         RedisSerializationContext<String, String> context = builder
                 .value(valueSerializer)
                 .build();
-        return new ReactiveRedisTemplate<>(factory, context);
+        return new ReactiveRedisTemplate<>(reactiveRedisConnectionFactory, context);
+    }
+    @Bean
+    public RedisTemplate<String, String> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
+        RedisTemplate<String, String> template = new RedisTemplate<>();
+        template.setConnectionFactory(redisConnectionFactory);
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setValueSerializer(new StringRedisSerializer());
+        return template;
     }
     @Bean
     public HealthIndicator redisHealthIndicator(ReactiveRedisConnectionFactory redisConnectionFactory) {
