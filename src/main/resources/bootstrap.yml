@@ -3,5 +3,5 @@ spring:
     name: account-service
   cloud:
     config:
-      uri: https://config-server-bwg5hzgfcte5gfbp.canadacentral-01.azurewebsites.net
+      uri: http://config-server-bwg5hzgfcte5gfbp.canadacentral-01.azurewebsites.net
       fail-fast: true
