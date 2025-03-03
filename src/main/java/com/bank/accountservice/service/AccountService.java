@@ -1,5 +1,8 @@
 package com.bank.accountservice.service;
 
+import com.bank.accountservice.client.CreditClientService;
+import com.bank.accountservice.client.CustomerClientService;
+import com.bank.accountservice.client.CustomerEligibilityClientService;
 import com.bank.accountservice.event.AccountEventProducer;
 import com.bank.accountservice.model.account.Account;
 import com.bank.accountservice.model.account.AccountType;
@@ -8,7 +11,6 @@ import com.bank.accountservice.model.customer.CustomerType;
 import com.bank.accountservice.repository.AccountRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -221,11 +223,12 @@ public class AccountService {
         return customerEligibilityClientService.hasOverdueDebt(account.getCustomerId())
                 .flatMap(hasOverDueDebt -> {
                     if (hasOverDueDebt) {
-                        return Mono.error(new RuntimeException
-                                ("Customer has overdue debt and cannot create a new credit"));
+                        return Mono.error(new RuntimeException("Customer has overdue " +
+                            "debt and cannot create a new credit"));
                     }
                     if (account.getBalance() < 0) {
-                        return Mono.error(new IllegalArgumentException("Account balance must be greater than or equal to 0"));
+                        return Mono.error(new IllegalArgumentException("Account balance must be " +
+                            "greater than or equal to 0"));
                     }
                     return validateCustomer(account.getCustomerId())
                             .flatMap(customerJson -> validateAccountRules(account, customerJson))

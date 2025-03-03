@@ -101,7 +101,7 @@ class CustomerCacheServiceTest {
         customer.setId(id);
         customer.setFullName("John Doe");
         customer.setCustomerType(CustomerType.PERSONAL);
-        customer.setCreatedAd(LocalDateTime.now());
+        customer.setCreatedAt(LocalDateTime.now());
         return customer;
     }
 }

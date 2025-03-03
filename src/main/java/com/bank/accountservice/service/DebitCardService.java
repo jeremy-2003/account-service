@@ -1,5 +1,6 @@
 package com.bank.accountservice.service;
 
+import com.bank.accountservice.client.CustomerEligibilityClientService;
 import com.bank.accountservice.dto.BalancePrimaryAccount;
 import com.bank.accountservice.model.debitcard.DebitCard;
 import com.bank.accountservice.repository.AccountRepository;
@@ -24,12 +25,13 @@ public class DebitCardService {
         return customerEligibilityClientService.hasOverdueDebt(customerId)
                 .flatMap(hasOverDueDebt -> {
                     if (hasOverDueDebt) {
-                        return Mono.error(new RuntimeException
-                                ("Customer has overdue debt and cannot create a new credit"));
+                        return Mono.error(new RuntimeException(
+                            "Customer has overdue debt and cannot create a new credit"));
                     }
                     return accountRepository.findById(primaryAccountId)
                             .filter(account -> account.getCustomerId().equals(customerId))
-                            .switchIfEmpty(Mono.error(new RuntimeException("The main account does not belong to the client")))
+                            .switchIfEmpty(Mono.error(new RuntimeException("The main account does not " +
+                                "belong to the client")))
                             .flatMap(account -> {
                                 return generateCardNumber().flatMap(cardNumber -> {
                                     DebitCard newCard = new DebitCard();
@@ -52,8 +54,10 @@ public class DebitCardService {
         return Mono.zip(
                         debitCardRepository.findById(cardId),
                         accountRepository.findById(accountId)
-                ).filter(tuple -> tuple.getT1().getCustomerId().equals(tuple.getT2().getCustomerId()))
-                .switchIfEmpty(Mono.error(new RuntimeException("The card or account do not belong to the same customer")))
+                ).filter(tuple -> tuple.getT1().getCustomerId()
+                    .equals(tuple.getT2().getCustomerId()))
+                .switchIfEmpty(Mono.error(new RuntimeException("The card or account do " +
+                    "not belong to the same customer")))
                 .flatMap(tuple -> {
                     DebitCard card = tuple.getT1();
                     if (!card.getAssociatedAccountIds().contains(accountId)) {
@@ -68,7 +72,8 @@ public class DebitCardService {
         return debitCardRepository.findById(cardId)
                 .flatMap(card -> {
                     if (!card.getAssociatedAccountIds().contains(newPrimaryAccountId)) {
-                        return Mono.error(new RuntimeException("The new main account must be associated with the card"));
+                        return Mono.error(new RuntimeException("The new main account must be" +
+                            " associated with the card"));
                     }
                     card.setPrimaryAccountId(newPrimaryAccountId);
                     card.setModifiedAt(LocalDateTime.now());

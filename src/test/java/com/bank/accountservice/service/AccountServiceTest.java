@@ -1,5 +1,8 @@
 package com.bank.accountservice.service;
 
+import com.bank.accountservice.client.CreditClientService;
+import com.bank.accountservice.client.CustomerClientService;
+import com.bank.accountservice.client.CustomerEligibilityClientService;
 import com.bank.accountservice.event.AccountEventProducer;
 import com.bank.accountservice.model.account.Account;
 import com.bank.accountservice.model.account.AccountType;
@@ -24,6 +27,7 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
@@ -48,6 +52,7 @@ class AccountServiceTest {
     private Account checkingAccount;
     private Account fixedTermAccount;
     private CreditCard creditCard;
+    private CustomerEligibilityClientService customerEligibilityClientService;
     @BeforeEach
     void setUp() {
         accountService = new AccountService(
@@ -56,7 +61,8 @@ class AccountServiceTest {
                 customerClientService,
                 mongoTemplate,
                 accountEventProducer,
-                creditClientService
+                creditClientService,
+                customerEligibilityClientService
         );
         ReflectionTestUtils.setField(accountService, "maintenanFee", new BigDecimal("100"));
         ReflectionTestUtils.setField(accountService, "minBalanceRequirement", new BigDecimal("60"));
@@ -101,13 +107,41 @@ class AccountServiceTest {
     }
     @Test
     void createAccount_PersonalCustomer_SavingsAccount_Success() {
+        CustomerEligibilityClientService mockEligibilityService = mock(CustomerEligibilityClientService.class);
+        when(mockEligibilityService.hasOverdueDebt(anyString())).thenReturn(Mono.just(false));
+        AccountService testAccountService = new AccountService(
+                accountRepository,
+                customerCacheService,
+                customerClientService,
+                mongoTemplate,
+                accountEventProducer,
+                creditClientService,
+                mockEligibilityService
+        );
+        ReflectionTestUtils.setField(testAccountService, "maintenanFee", new BigDecimal("100"));
+        ReflectionTestUtils.setField(testAccountService, "minBalanceRequirement", new BigDecimal("60"));
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionSavings", 5);
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionChecking", 4);
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionFixedTerms", 3);
+        ReflectionTestUtils.setField(testAccountService, "costTransactionSavings", new BigDecimal("5.50"));
+        ReflectionTestUtils.setField(testAccountService, "costTransactionChecking", new BigDecimal("4.20"));
+        ReflectionTestUtils.setField(testAccountService, "costTransactionFixedTerms", new BigDecimal("8.50"));
         when(customerCacheService.getCustomer(anyString())).thenReturn(Mono.just(personalCustomer));
-        when(mongoTemplate.find(any(Query.class), eq(Account.class))).thenReturn(Flux.empty());
+        when(mongoTemplate.find(any(Query.class), eq(Account.class)))
+                .thenReturn(Flux.empty());
         when(creditClientService.getCreditCardsByCustomer(anyString()))
-            .thenReturn(Mono.just(Collections.singletonList(creditCard)));
-        when(customerClientService.updateVipPymStatus(anyString(), anyBoolean())).thenReturn(Mono.empty());
-        when(accountRepository.save(any(Account.class))).thenReturn(Mono.just(savingsAccount));
-        StepVerifier.create(accountService.createAccount(savingsAccount))
+                .thenReturn(Mono.just(Collections.singletonList(creditCard)));
+        when(customerClientService.updateVipPymStatus(anyString(), anyBoolean()))
+                .thenReturn(Mono.empty());
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> {
+            Account savedAccount = invocation.getArgument(0);
+            savedAccount.setVipAccount(true);
+            savedAccount.setMinBalanceRequirement(new BigDecimal("60"));
+            savedAccount.setMaxFreeTransaction(5);
+            savedAccount.setTransactionCost(new BigDecimal("5.50"));
+            return Mono.just(savedAccount);
+        });
+        StepVerifier.create(testAccountService.createAccount(savingsAccount))
                 .expectNextMatches(account ->
                         account.getAccountType() == AccountType.SAVINGS &&
                                 account.isVipAccount() &&
@@ -118,15 +152,42 @@ class AccountServiceTest {
                 .verifyComplete();
         verify(accountEventProducer).publishAccountCreated(any(Account.class));
     }
+
     @Test
     void createAccount_BusinessCustomer_CheckingAccount_Success() {
+        CustomerEligibilityClientService mockEligibilityService = mock(CustomerEligibilityClientService.class);
+        when(mockEligibilityService.hasOverdueDebt(anyString())).thenReturn(Mono.just(false));
+        AccountService testAccountService = new AccountService(
+                accountRepository,
+                customerCacheService,
+                customerClientService,
+                mongoTemplate,
+                accountEventProducer,
+                creditClientService,
+                mockEligibilityService
+        );
+        ReflectionTestUtils.setField(testAccountService, "maintenanFee", new BigDecimal("100"));
+        ReflectionTestUtils.setField(testAccountService, "minBalanceRequirement", new BigDecimal("60"));
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionSavings", 5);
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionChecking", 4);
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionFixedTerms", 3);
+        ReflectionTestUtils.setField(testAccountService, "costTransactionSavings", new BigDecimal("5.50"));
+        ReflectionTestUtils.setField(testAccountService, "costTransactionChecking", new BigDecimal("4.20"));
+        ReflectionTestUtils.setField(testAccountService, "costTransactionFixedTerms", new BigDecimal("8.50"));
         when(customerCacheService.getCustomer(anyString())).thenReturn(Mono.just(businessCustomer));
         when(mongoTemplate.find(any(Query.class), eq(Account.class))).thenReturn(Flux.empty());
         when(creditClientService.getCreditCardsByCustomer(anyString()))
-            .thenReturn(Mono.just(Collections.singletonList(creditCard)));
+                .thenReturn(Mono.just(Collections.singletonList(creditCard)));
         when(customerClientService.updateVipPymStatus(anyString(), anyBoolean())).thenReturn(Mono.empty());
-        when(accountRepository.save(any(Account.class))).thenReturn(Mono.just(checkingAccount));
-        StepVerifier.create(accountService.createAccount(checkingAccount))
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> {
+            Account savedAccount = invocation.getArgument(0);
+            savedAccount.setPymAccount(true);
+            savedAccount.setMaintenanFee(BigDecimal.ZERO);
+            savedAccount.setMaxFreeTransaction(4);
+            savedAccount.setTransactionCost(new BigDecimal("4.20"));
+            return Mono.just(savedAccount);
+        });
+        StepVerifier.create(testAccountService.createAccount(checkingAccount))
                 .expectNextMatches(account ->
                         account.getAccountType() == AccountType.CHECKING &&
                                 account.isPymAccount() &&
@@ -139,21 +200,59 @@ class AccountServiceTest {
     }
     @Test
     void createAccount_BusinessCustomer_SavingsAccount_Error() {
+        CustomerEligibilityClientService mockEligibilityService = mock(CustomerEligibilityClientService.class);
+        when(mockEligibilityService.hasOverdueDebt(anyString())).thenReturn(Mono.just(false));
+        AccountService testAccountService = new AccountService(
+                accountRepository,
+                customerCacheService,
+                customerClientService,
+                mongoTemplate,
+                accountEventProducer,
+                creditClientService,
+                mockEligibilityService
+        );
+        ReflectionTestUtils.setField(testAccountService, "maintenanFee", new BigDecimal("100"));
+        ReflectionTestUtils.setField(testAccountService, "minBalanceRequirement", new BigDecimal("60"));
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionSavings", 5);
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionChecking", 4);
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionFixedTerms", 3);
+        ReflectionTestUtils.setField(testAccountService, "costTransactionSavings", new BigDecimal("5.50"));
+        ReflectionTestUtils.setField(testAccountService, "costTransactionChecking", new BigDecimal("4.20"));
+        ReflectionTestUtils.setField(testAccountService, "costTransactionFixedTerms", new BigDecimal("8.50"));
         Account invalidAccount = new Account();
         invalidAccount.setCustomerId("B001");
         invalidAccount.setAccountType(AccountType.SAVINGS);
         when(customerCacheService.getCustomer(anyString())).thenReturn(Mono.just(businessCustomer));
         when(mongoTemplate.find(any(Query.class), eq(Account.class))).thenReturn(Flux.empty());
-        StepVerifier.create(accountService.createAccount(invalidAccount))
+        StepVerifier.create(testAccountService.createAccount(invalidAccount))
                 .expectError(RuntimeException.class)
                 .verify();
     }
     @Test
     void createAccount_PersonalCustomer_DuplicateAccount_Error() {
+        CustomerEligibilityClientService mockEligibilityService = mock(CustomerEligibilityClientService.class);
+        when(mockEligibilityService.hasOverdueDebt(anyString())).thenReturn(Mono.just(false));
+        AccountService testAccountService = new AccountService(
+                accountRepository,
+                customerCacheService,
+                customerClientService,
+                mongoTemplate,
+                accountEventProducer,
+                creditClientService,
+                mockEligibilityService
+        );
+        ReflectionTestUtils.setField(testAccountService, "maintenanFee", new BigDecimal("100"));
+        ReflectionTestUtils.setField(testAccountService, "minBalanceRequirement", new BigDecimal("60"));
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionSavings", 5);
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionChecking", 4);
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionFixedTerms", 3);
+        ReflectionTestUtils.setField(testAccountService, "costTransactionSavings", new BigDecimal("5.50"));
+        ReflectionTestUtils.setField(testAccountService, "costTransactionChecking", new BigDecimal("4.20"));
+        ReflectionTestUtils.setField(testAccountService, "costTransactionFixedTerms", new BigDecimal("8.50"));
         when(customerCacheService.getCustomer(anyString())).thenReturn(Mono.just(personalCustomer));
         when(mongoTemplate.find(any(Query.class), eq(Account.class)))
                 .thenReturn(Flux.just(savingsAccount));
-        StepVerifier.create(accountService.createAccount(savingsAccount))
+        StepVerifier.create(testAccountService.createAccount(savingsAccount))
                 .expectError(RuntimeException.class)
                 .verify();
     }
@@ -238,14 +337,40 @@ class AccountServiceTest {
     }
     @Test
     void validateCustomer_CacheHit_Success() {
+        CustomerEligibilityClientService mockEligibilityService = mock(CustomerEligibilityClientService.class);
+        when(mockEligibilityService.hasOverdueDebt(anyString())).thenReturn(Mono.just(false));
+        AccountService testAccountService = new AccountService(
+                accountRepository,
+                customerCacheService,
+                customerClientService,
+                mongoTemplate,
+                accountEventProducer,
+                creditClientService,
+                mockEligibilityService
+        );
+        ReflectionTestUtils.setField(testAccountService, "maintenanFee", new BigDecimal("100"));
+        ReflectionTestUtils.setField(testAccountService, "minBalanceRequirement", new BigDecimal("60"));
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionSavings", 5);
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionChecking", 4);
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionFixedTerms", 3);
+        ReflectionTestUtils.setField(testAccountService, "costTransactionSavings", new BigDecimal("5.50"));
+        ReflectionTestUtils.setField(testAccountService, "costTransactionChecking", new BigDecimal("4.20"));
+        ReflectionTestUtils.setField(testAccountService, "costTransactionFixedTerms", new BigDecimal("8.50"));
         when(customerCacheService.getCustomer("P001")).thenReturn(Mono.just(personalCustomer));
         when(mongoTemplate.find(any(Query.class), eq(Account.class))).thenReturn(Flux.empty());
         when(creditClientService.getCreditCardsByCustomer(anyString()))
                 .thenReturn(Mono.just(Collections.singletonList(creditCard)));
         when(customerClientService.updateVipPymStatus(anyString(), anyBoolean()))
                 .thenReturn(Mono.empty());
-        when(accountRepository.save(any(Account.class))).thenReturn(Mono.just(savingsAccount));
-        StepVerifier.create(accountService.createAccount(savingsAccount))
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> {
+            Account savedAccount = invocation.getArgument(0);
+            savedAccount.setVipAccount(true);
+            savedAccount.setMaxFreeTransaction(5);
+            savedAccount.setTransactionCost(new BigDecimal("5.50"));
+            savedAccount.setHolders(Collections.singletonList("John Doe"));
+            return Mono.just(savedAccount);
+        });
+        StepVerifier.create(testAccountService.createAccount(savingsAccount))
                 .expectNextMatches(account -> {
                     return account.getCustomerId().equals("P001") &&
                             account.getAccountType() == AccountType.SAVINGS &&
@@ -258,6 +383,25 @@ class AccountServiceTest {
     }
     @Test
     void validateCustomer_CacheMiss_Success() {
+        CustomerEligibilityClientService mockEligibilityService = mock(CustomerEligibilityClientService.class);
+        when(mockEligibilityService.hasOverdueDebt(anyString())).thenReturn(Mono.just(false));
+        AccountService testAccountService = new AccountService(
+                accountRepository,
+                customerCacheService,
+                customerClientService,
+                mongoTemplate,
+                accountEventProducer,
+                creditClientService,
+                mockEligibilityService
+        );
+        ReflectionTestUtils.setField(testAccountService, "maintenanFee", new BigDecimal("100"));
+        ReflectionTestUtils.setField(testAccountService, "minBalanceRequirement", new BigDecimal("60"));
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionSavings", 5);
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionChecking", 4);
+        ReflectionTestUtils.setField(testAccountService, "maxFreeTransactionFixedTerms", 3);
+        ReflectionTestUtils.setField(testAccountService, "costTransactionSavings", new BigDecimal("5.50"));
+        ReflectionTestUtils.setField(testAccountService, "costTransactionChecking", new BigDecimal("4.20"));
+        ReflectionTestUtils.setField(testAccountService, "costTransactionFixedTerms", new BigDecimal("8.50"));
         when(customerCacheService.getCustomer("P001")).thenReturn(Mono.empty());
         when(customerClientService.getCustomerById("P001")).thenReturn(Mono.just(personalCustomer));
         when(customerCacheService.saveCustomer(anyString(), any(Customer.class))).thenReturn(Mono.empty());
@@ -277,7 +421,7 @@ class AccountServiceTest {
         expectedSavedAccount.setMinBalanceRequirement(new BigDecimal("60"));
         expectedSavedAccount.setHolders(Collections.singletonList("John Doe"));
         when(accountRepository.save(any(Account.class))).thenReturn(Mono.just(expectedSavedAccount));
-        StepVerifier.create(accountService.createAccount(savingsAccount))
+        StepVerifier.create(testAccountService.createAccount(savingsAccount))
                 .expectNextMatches(account -> {
                     return account.getCustomerId().equals("P001") &&
                             account.getAccountType() == AccountType.SAVINGS &&

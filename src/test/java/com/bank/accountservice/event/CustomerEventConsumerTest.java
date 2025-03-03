@@ -83,7 +83,7 @@ class CustomerEventConsumerTest {
         customer.setPhone("1234567890");
         customer.setCustomerType(CustomerType.PERSONAL);
         customer.setStatus("ACTIVE");
-        customer.setCreatedAd(LocalDateTime.now());
+        customer.setCreatedAt(LocalDateTime.now());
         return customer;
     }
 }
