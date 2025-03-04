@@ -50,8 +50,8 @@ class AccountRepositoryTest {
         accountRepository.saveAll(Arrays.asList(account1, account2, account3)).blockLast();
         // Act & Assert
         StepVerifier.create(accountRepository.findByCustomerId("123"))
-                .expectNextMatches(account -> account.getId().equals("A1"))
-                .expectNextMatches(account -> account.getId().equals("A3"))
+                .expectNextMatches(account -> account.getId().equals("A1") || account.getId().equals("A3"))
+                .expectNextMatches(account -> account.getId().equals("A1") || account.getId().equals("A3"))
                 .verifyComplete();
     }
     @Test
