@@ -54,6 +54,35 @@ public class CustomerClientService {
                                     "Cannot continue with the operation."));
                 });
     }
+    public Mono<Customer> getCustomerByDocumentNumber(String documentNumber) {
+        String fullUrl = customerServiceUrl + "/" + documentNumber;
+        log.info("Sending request to Customer Service API: {}", fullUrl);
+        return webClient.get()
+                .uri("/document/{documentNumber}", documentNumber)
+                .retrieve()
+                .onStatus(HttpStatus::is4xxClientError, response -> {
+                    log.error("Client error: {}", response.statusCode());
+                    return Mono.error(new RuntimeException("Client error: " + response.statusCode()));
+                })
+                .onStatus(HttpStatus::is5xxServerError, response -> {
+                    log.error("Server error: {}", response.statusCode());
+                    return Mono.error(new RuntimeException("Server error: " + response.statusCode()));
+                })
+                .bodyToMono(new ParameterizedTypeReference<BaseResponse<Customer>>() { })
+                .flatMap(response -> Mono.justOrEmpty(response.getData()))
+                .doOnNext(result -> log.info("Customer API response: {}", result))
+                .doOnError(e -> log.error("Error while fetching customer: {}", e.getMessage()))
+                .doOnTerminate(() -> log.info("Request to Customer API completed"))
+                .transform(CircuitBreakerOperator.of(circuitBreaker))
+                .onErrorResume(throwable -> {
+                    log.error("FALLBACK TRIGGERED: Unable to get customer {}. Reason: {}",
+                            documentNumber, throwable.getMessage());
+                    log.error("Exception type: {}", throwable.getClass().getName());
+                    return Mono.error(new RuntimeException(
+                            "Customer service is unavailable for retrieving customer information. " +
+                                    "Cannot continue with the operation."));
+                });
+    }
     public Mono<Customer> updateVipPymStatus(String customerId, boolean isVipPym) {
         String fullUrl = customerServiceUrl + "/" + customerId + "/vip-pym/status?isVipPym=" + isVipPym;
         log.info("Sending PUT request to Customer Service API: {}", fullUrl);

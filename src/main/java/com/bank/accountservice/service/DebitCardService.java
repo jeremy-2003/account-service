@@ -88,11 +88,12 @@ public class DebitCardService {
     public Mono<DebitCard> getDebitCardByCardNumber(String cardNumber) {
         return debitCardRepository.findByCardNumber(cardNumber);
     }
-
+    public Flux<DebitCard> getDebitCardByPrimaryAccountId(String primaryAccountId) {
+        return debitCardRepository.findByPrimaryAccountId(primaryAccountId);
+    }
     public Mono<DebitCard> getDebitCardById(String cardId) {
         return debitCardRepository.findById(cardId);
     }
-
     public Flux<DebitCard> getDebitCardsByAccountId(String accountId) {
         return debitCardRepository.findByAssociatedAccountIdsContaining(accountId);
     }

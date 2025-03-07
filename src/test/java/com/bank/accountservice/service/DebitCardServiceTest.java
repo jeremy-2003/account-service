@@ -169,6 +169,35 @@ class DebitCardServiceTest {
         verify(debitCardRepository, never()).save(any(DebitCard.class));
     }
     @Test
+    void getDebitCardByPrimaryAccountId_Success() {
+        // Arrange
+        String primaryAccountId = "account123";
+        DebitCard debitCard1 = new DebitCard();
+        debitCard1.setId("card1");
+        debitCard1.setPrimaryAccountId(primaryAccountId);
+
+        DebitCard debitCard2 = new DebitCard();
+        debitCard2.setId("card2");
+        debitCard2.setPrimaryAccountId(primaryAccountId);
+
+        when(debitCardRepository.findByPrimaryAccountId(primaryAccountId))
+                .thenReturn(Flux.just(debitCard1, debitCard2));
+
+        // Act & Assert
+        StepVerifier.create(debitCardService.getDebitCardByPrimaryAccountId(primaryAccountId))
+                .expectNextMatches(card ->
+                    card.getId().equals("card1")
+                    && card.getPrimaryAccountId()
+                        .equals(primaryAccountId))
+                .expectNextMatches(card ->
+                    card.getId().equals("card2")
+                    && card.getPrimaryAccountId()
+                        .equals(primaryAccountId))
+                .verifyComplete();
+
+        verify(debitCardRepository).findByPrimaryAccountId(primaryAccountId);
+    }
+    @Test
     void changePrimaryAccount_Success() {
         // Arrange
         String cardId = "card123";

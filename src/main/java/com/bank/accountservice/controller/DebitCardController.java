@@ -73,6 +73,22 @@ public class DebitCardController {
                                 null
                         ))));
     }
+    @GetMapping("/number/{cardNumber}")
+    public Mono<ResponseEntity<BaseResponse<DebitCard>>> getDebitCardByCardNumber(@PathVariable String cardNumber) {
+        return debitCardService.getDebitCardByCardNumber(cardNumber)
+                .map(card -> ResponseEntity.ok(
+                        new BaseResponse<>(
+                                HttpStatus.OK.value(),
+                                "Debit card successfully obtained",
+                                card
+                        )))
+                .switchIfEmpty(Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new BaseResponse<>(
+                                HttpStatus.NOT_FOUND.value(),
+                                "Debit card not found",
+                                null
+                        ))));
+    }
     @GetMapping("/account/primary-balance/{cardId}")
     public Mono<ResponseEntity<BaseResponse<BalancePrimaryAccount>>> getBalancePrimaryAccount(
             @PathVariable String cardId) {
@@ -147,6 +163,29 @@ public class DebitCardController {
     @GetMapping("/by-account/{accountId}")
     public Mono<ResponseEntity<BaseResponse<List<DebitCard>>>> getDebitCardsByAccount(@PathVariable String accountId) {
         return debitCardService.getDebitCardsByAccountId(accountId)
+                .collectList()
+                .map(debitCards -> {
+                    if (debitCards.isEmpty()) {
+                        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                .body(BaseResponse.<List<DebitCard>>builder()
+                                        .status(HttpStatus.NOT_FOUND.value())
+                                        .message("No debit cards found for the account")
+                                        .data(Collections.emptyList())
+                                        .build());
+                    } else {
+                        return ResponseEntity.ok(
+                                BaseResponse.<List<DebitCard>>builder()
+                                        .status(HttpStatus.OK.value())
+                                        .message("Debit cards retrieved successfully")
+                                        .data(debitCards)
+                                        .build());
+                    }
+                });
+    }
+    @GetMapping("/by-primary-account/{primaryAccountId}")
+    public Mono<ResponseEntity<BaseResponse<List<DebitCard>>>> getDebitCardByPrimaryAccountId(
+        @PathVariable String primaryAccountId) {
+        return debitCardService.getDebitCardByPrimaryAccountId(primaryAccountId)
                 .collectList()
                 .map(debitCards -> {
                     if (debitCards.isEmpty()) {
