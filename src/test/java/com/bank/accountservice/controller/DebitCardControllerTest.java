@@ -17,9 +17,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
-import static org.mockito.Mockito.when;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.http.HttpStatus.*;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DebitCardControllerTest {
     @Mock
@@ -50,19 +52,73 @@ class DebitCardControllerTest {
                 .build();
     }
     @Test
+    void getDebitCardByCardNumber_ShouldReturnCard_WhenCardExists() {
+        // Arrange
+        String cardNumber = "4111111111111111";
+        when(debitCardService.getDebitCardByCardNumber(cardNumber)).thenReturn(Mono.just(testDebitCard));
+        // Act & Assert
+        StepVerifier.create(debitCardController.getDebitCardByCardNumber(cardNumber))
+                .assertNext(response -> {
+                    assertThat(response.getStatusCode()).isEqualTo(OK);
+                    assertThat(response.getBody()).isNotNull();
+                    assertThat(response.getBody().getStatus()).isEqualTo(OK.value());
+                    assertThat(response.getBody().getMessage()).isEqualTo("Debit card successfully obtained");
+                    assertThat(response.getBody().getData()).isEqualTo(testDebitCard);
+                })
+                .verifyComplete();
+        verify(debitCardService).getDebitCardByCardNumber(cardNumber);
+    }
+    @Test
+    void getDebitCardByCardNumber_ShouldReturnNotFound_WhenCardDoesNotExist() {
+        // Arrange
+        String cardNumber = "0000000000000000";
+        when(debitCardService.getDebitCardByCardNumber(cardNumber)).thenReturn(Mono.empty());
+        // Act & Assert
+        StepVerifier.create(debitCardController.getDebitCardByCardNumber(cardNumber))
+                .assertNext(response -> {
+                    assertThat(response.getStatusCode()).isEqualTo(NOT_FOUND);
+                    assertThat(response.getBody()).isNotNull();
+                    assertThat(response.getBody().getStatus()).isEqualTo(NOT_FOUND.value());
+                    assertThat(response.getBody().getMessage()).isEqualTo("Debit card not found");
+                    assertThat(response.getBody().getData()).isNull();
+                })
+                .verifyComplete();
+        verify(debitCardService).getDebitCardByCardNumber(cardNumber);
+    }
+    @Test
+    void getDebitCardByPrimaryAccountId_ShouldReturnList_WhenCardsExist() {
+        // Arrange
+        String primaryAccountId = "account123";
+        when(debitCardService.getDebitCardByPrimaryAccountId(primaryAccountId))
+            .thenReturn(Flux.fromIterable(testDebitCards));
+        // Act & Assert
+        StepVerifier.create(debitCardController.getDebitCardByPrimaryAccountId(primaryAccountId))
+                .assertNext(response -> {
+                    assertThat(response.getStatusCode()).isEqualTo(OK);
+                    assertThat(response.getBody()).isNotNull();
+                    assertThat(response.getBody().getStatus()).isEqualTo(OK.value());
+                    assertThat(response.getBody().getMessage()).isEqualTo("Debit cards retrieved successfully");
+                    assertThat(response.getBody().getData()).isEqualTo(testDebitCards);
+                })
+                .verifyComplete();
+        verify(debitCardService).getDebitCardByPrimaryAccountId(primaryAccountId);
+    }
+    @Test
     void createDebitCard_Success() {
         // Arrange
         CreateCardRequest request = new CreateCardRequest();
         request.setCustomerId("customer123");
         request.setPrimaryAccountId("account123");
-        when(debitCardService.createDebitCard("customer123", "account123"))
+        when(debitCardService.createDebitCard("customer123",
+            "account123"))
                 .thenReturn(Mono.just(testDebitCard));
         // Act & Assert
         StepVerifier.create(debitCardController.createDebitCard(request))
                 .assertNext(responseEntity -> {
                     assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
                     assertEquals(HttpStatus.OK.value(), responseEntity.getBody().getStatus());
-                    assertEquals("Debit Card created successfully", responseEntity.getBody().getMessage());
+                    assertEquals("Debit Card created successfully",
+                        responseEntity.getBody().getMessage());
                     assertEquals(testDebitCard, responseEntity.getBody().getData());
                 })
                 .verifyComplete();
@@ -97,7 +153,8 @@ class DebitCardControllerTest {
                 .assertNext(responseEntity -> {
                     assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
                     assertEquals(HttpStatus.OK.value(), responseEntity.getBody().getStatus());
-                    assertEquals("Account retrieved successfully", responseEntity.getBody().getMessage());
+                    assertEquals("Account retrieved successfully",
+                        responseEntity.getBody().getMessage());
                     assertEquals(testDebitCards, responseEntity.getBody().getData());
                 })
                 .verifyComplete();
@@ -350,7 +407,6 @@ class DebitCardControllerTest {
                 })
                 .verifyComplete();
     }
-    // Método auxiliar para crear una copia de DebitCard para evitar modificar el original
     private DebitCard copyDebitCard(DebitCard original) {
         DebitCard copy = new DebitCard();
         copy.setId(original.getId());
